@@ -1,0 +1,154 @@
+## Create database named saas_analytics
+create database saas_analytics;
+
+## Create table named customers
+ create table customers (
+    customer_id VARCHAR(20) PRIMARY KEY,
+    signup_date DATE,
+    segment VARCHAR(50),
+    industry VARCHAR(50),
+    country VARCHAR(50),
+    plan_type VARCHAR(50),
+    mrr DECIMAL(12,2),
+    contract_length INT,
+    number_of_users INT,
+    support_tickets INT,
+    usage_score INT,
+    nps_score INT,
+    churn_date DATE,
+    is_churned VARCHAR(10),
+    lifetime_months INT,
+    total_revenue DECIMAL(12,2),
+    clv DECIMAL(12,2),
+    last_transaction_date DATE,
+    recency_days INT,
+    transaction_count INT,
+    avg_transaction_value DECIMAL(12,2),
+    cohort_month DATE,
+    cust_age_months INT,
+    revenue_bucket VARCHAR(20),
+    nps_category VARCHAR(20),
+    usage_band VARCHAR(20),
+    support_band VARCHAR(20),
+    cust_status VARCHAR(20)
+ );
+ 
+ ### Create table named risk_customers 
+ CREATE TABLE at_risk_customers (
+    customer_id VARCHAR(20),
+    segment VARCHAR(50),
+    industry VARCHAR(50),
+    plan_type VARCHAR(50),
+    mrr DECIMAL(12,2),
+    clv DECIMAL(12,2),
+    usage_score INT,
+    nps_score INT,
+    support_tickets INT,
+    churn_probability DECIMAL(5,2),
+    risk_category VARCHAR(20)
+);
+
+### Create table named monthly_revenue
+ CREATE TABLE monthly_revenue (
+    revenue_month DATE,
+    monthly_revenue DECIMAL(12,2),
+    growth_pct DECIMAL(8,2),
+    num_transactions INT,
+    quarter VARCHAR(10)
+);
+
+### Validating the import
+select *
+from customers;
+
+select *
+from at_risk_customers;
+
+select *
+from monthly_revenue;
+
+### Query 1- Executive KPI Summary
+select count(*) as total_customers,round(sum(total_revenue),2)as total_revenue,round(avg(clv),2) as avg_clv,avg(nps_score)as avg_nps,
+sum(case when is_churned= 1 then 1 else 0 end) as churned_customers,
+round(sum(case when is_churned= 1 then 1 else 0 end)*100/count(*),2)as churn_rate
+from customers;
+
+### Query 2 - Revenue by Segment
+select segment,count(*)customers,sum(total_revenue)as revenue ,round(avg(clv),2)as avg_clv
+from customers
+group by segment
+order by revenue;
+
+### Query 3 - Revenue by Country
+select country, sum(total_revenue) as revenue
+from customers
+group by country
+order by revenue;
+
+### Query 4 - Plan Performance
+select plan_type,count(*)as no_of_cust,sum(total_revenue) as revenue,round(avg(nps_score),2)as avg_nps,round(avg(usage_score),2)as avg_usage
+from customers
+group by plan_type
+order by revenue;
+
+### Query 5 - Churn by Segment
+select segment,count(*)as total_cust,
+sum(case when is_churned=1 then 1 else 0 end) as churned,
+round(sum(case when is_churned=1 then 1 else 0 end)*100/count(*),2)as churn_rate
+from customers
+group by segment
+order by churn_rate desc;
+
+### Query 6 - Top 20 Customers
+select customer_id,total_revenue,clv,segment
+from customers
+order by total_revenue desc
+limit 20;
+
+### Query 7 - At Risk Revenue
+select risk_category,COUNT(*) as customers,SUM(mrr)as revenue_at_risk
+FROM at_risk_customers
+GROUP BY risk_category
+ORDER BY revenue_at_risk DESC;
+
+### Query 8 - Top Risk Industries
+Select c.industry,count(*) as risky_customers,round(avg(a.churn_probability),2)as avg_risk
+FROM customers c
+JOIN at_risk_customers a
+ON c.customer_id = a.customer_id
+group by c.industry
+order by avg_risk desc;
+
+### Query 9 - Monthly Revenue Trend
+SELECT
+    revenue_month,
+    monthly_revenue,
+    growth_pct
+FROM monthly_revenue
+ORDER BY revenue_month;
+
+### Query 10 - Revenue Growth using windows function
+SELECT
+    revenue_month,
+    monthly_revenue,
+    LAG(monthly_revenue) OVER(ORDER BY revenue_month) previous_month,
+    ROUND(
+        (
+            monthly_revenue -
+            LAG(monthly_revenue) OVER(ORDER BY revenue_month)
+        ) *100 /
+        LAG(monthly_revenue) OVER(ORDER BY revenue_month),
+        2
+    ) growth_pct
+FROM monthly_revenue;
+
+
+### Query 11 - Customer Ranking
+SELECT
+    customer_id,
+    total_revenue,
+    DENSE_RANK() OVER(
+        ORDER BY total_revenue DESC
+    ) revenue_rank
+FROM customers;
+
